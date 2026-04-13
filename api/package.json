@@ -1,0 +1,8 @@
+{
+  "name": "image-reducer-api",
+  "version": "1.0.0",
+  "dependencies": {
+    "busboy": "^1.6.0",
+    "sharp": "^0.33.2"
+  }
+}
