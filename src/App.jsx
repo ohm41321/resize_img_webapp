@@ -63,7 +63,9 @@ function App() {
     setImageFiles(newFiles)
 
     const newPreviews = []
+    let totalSize = 0
     files.forEach(file => {
+      totalSize += file.size
       const reader = new FileReader()
       reader.onload = (e) => {
         newPreviews.push({ name: file.name, data: e.target.result })
@@ -73,6 +75,12 @@ function App() {
       }
       reader.readAsDataURL(file)
     })
+
+    // Show size warning if too large
+    const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2)
+    if (totalSize > 50 * 1024 * 1024) {
+      alert(`Total size is ${totalSizeMB}MB which may take longer to process.`)
+    }
   }, [imageFiles, imagePreviews])
 
   const removeImage = (index) => {
@@ -259,6 +267,14 @@ function App() {
                 Drag & drop images or <span className="text-blue-500 underline">browse</span>
               </p>
               <p className="text-sm text-gray-600 mt-3">Supports JPG, PNG, WEBP</p>
+              <div className="mt-4 p-3 bg-gray-900/50 rounded-lg inline-block">
+                <p className="text-xs text-gray-500">
+                  💡 Recommended: <span className="text-gray-400 font-medium">Up to 20 images</span> or <span className="text-gray-400 font-medium">50MB total</span>
+                </p>
+                <p className="text-xs text-gray-600 mt-1">
+                  Images are compressed in your browser before upload for faster processing
+                </p>
+              </div>
               <input
                 id="imageInput"
                 type="file"
@@ -288,7 +304,7 @@ function App() {
                   ))}
                 </div>
                 <p className="text-center text-gray-500 mt-4 text-sm animate-fade-in">
-                  {imageFiles.length} image{imageFiles.length !== 1 ? 's' : ''} selected
+                  {imageFiles.length} image{imageFiles.length !== 1 ? 's' : ''} selected • {formatSize(imageFiles.reduce((sum, f) => sum + f.size, 0))} total
                 </p>
               </>
             )}
