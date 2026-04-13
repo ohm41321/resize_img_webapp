@@ -110,6 +110,9 @@ function App() {
     setProgress(0)
 
     try {
+      // Store original sizes before compression
+      const originalSizes = imageFiles.map(f => f.size)
+
       // Compress all images client-side first
       const compressedFiles = []
       
@@ -146,7 +149,11 @@ function App() {
       xhr.onload = async () => {
         if (xhr.status === 200) {
           const result = JSON.parse(xhr.responseText)
-          setImageResults(result)
+          // Add original sizes to the result
+          setImageResults({
+            ...result,
+            original_sizes: originalSizes
+          })
         } else if (xhr.status === 413) {
           alert('File too large. Try uploading fewer images or smaller images.')
         } else {
@@ -337,6 +344,10 @@ function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {imageResults.files.map((file, index) => {
                 const savingsPercent = file.savings.toFixed(1)
+                // Use the real original size if available
+                const realOriginalSize = imageResults.original_sizes ? imageResults.original_sizes[index] : file.original_size
+                const totalSavings = realOriginalSize > 0 ? ((realOriginalSize - file.reduced_size) / realOriginalSize) * 100 : 0
+                
                 return (
                   <div key={index} className="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden hover:border-gray-700 transition-all duration-300 animate-scale-in hover:shadow-2xl hover:shadow-purple-500/20 hover:-translate-y-1" style={{animationDelay: `${index * 100}ms`}}>
                     <div className="relative overflow-hidden">
@@ -354,7 +365,7 @@ function App() {
                       <div className="grid grid-cols-3 gap-2 mb-4">
                         <div className="bg-gray-900 rounded-lg p-2 text-center transform hover:scale-105 transition-transform duration-200">
                           <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Original</p>
-                          <p className="text-sm font-semibold text-white">{formatSize(file.original_size)}</p>
+                          <p className="text-sm font-semibold text-white">{formatSize(realOriginalSize)}</p>
                         </div>
                         <div className="bg-gray-900 rounded-lg p-2 text-center transform hover:scale-105 transition-transform duration-200">
                           <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Reduced</p>
@@ -362,7 +373,7 @@ function App() {
                         </div>
                         <div className="bg-gray-900 rounded-lg p-2 text-center transform hover:scale-105 transition-transform duration-200">
                           <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Saved</p>
-                          <p className="text-sm font-semibold text-blue-500">{savingsPercent}%</p>
+                          <p className="text-sm font-semibold text-blue-500">{totalSavings.toFixed(1)}%</p>
                         </div>
                       </div>
                       <button
