@@ -14,6 +14,49 @@ function App() {
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
   }
 
+  // Compress image client-side before uploading
+  const compressImageClient = (file, maxWidth = 1920, maxHeight = 1080, quality = 0.85) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          let width = img.width
+          let height = img.height
+
+          // Resize if too large
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height)
+            width = width * ratio
+            height = height * ratio
+          }
+
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0, width, height)
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' }))
+              } else {
+                reject(new Error('Failed to compress image'))
+              }
+            },
+            'image/jpeg',
+            quality
+          )
+        }
+        img.onerror = () => reject(new Error('Failed to load image'))
+        img.src = e.target.result
+      }
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsDataURL(file)
+    })
+  }
+
   const handleImageFiles = useCallback((fileList) => {
     const files = Array.from(fileList).filter(f => f.type.startsWith('image/'))
     const newFiles = [...imageFiles, ...files]
@@ -67,8 +110,27 @@ function App() {
     setProgress(0)
 
     try {
+      // Compress all images client-side first
+      const compressedFiles = []
+      
+      for (let i = 0; i < imageFiles.length; i++) {
+        const file = imageFiles[i]
+        try {
+          const compressed = await compressImageClient(file)
+          compressedFiles.push(compressed)
+          setProgress(Math.round(((i + 1) / imageFiles.length) * 50)) // First 50% is compression
+        } catch (error) {
+          console.error(`Failed to compress ${file.name}:`, error)
+          // If compression fails, use original file
+          compressedFiles.push(file)
+        }
+      }
+
+      setProgress(50)
+
+      // Send compressed files to server
       const formData = new FormData()
-      imageFiles.forEach(file => {
+      compressedFiles.forEach(file => {
         formData.append('files', file)
       })
 
@@ -76,7 +138,8 @@ function App() {
       
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) {
-          setProgress(Math.round((e.loaded / e.total) * 100))
+          const uploadProgress = 50 + Math.round((e.loaded / e.total) * 50) // Last 50% is upload
+          setProgress(uploadProgress)
         }
       })
 
@@ -84,15 +147,17 @@ function App() {
         if (xhr.status === 200) {
           const result = JSON.parse(xhr.responseText)
           setImageResults(result)
+        } else if (xhr.status === 413) {
+          alert('File too large. Try uploading fewer images or smaller images.')
         } else {
-          alert('Error processing images')
+          alert('Error processing images: ' + (xhr.statusText || 'Unknown error'))
         }
         setProcessing(false)
         setProgress(0)
       }
 
       xhr.onerror = () => {
-        alert('Network error')
+        alert('Network error. Please check your connection.')
         setProcessing(false)
         setProgress(0)
       }
@@ -235,7 +300,9 @@ function App() {
               <div className="mt-10 text-center animate-fade-in">
                 <div className="flex items-center justify-center gap-3 mb-4">
                   <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent"></div>
-                  <p className="text-gray-400">Processing images...</p>
+                  <p className="text-gray-400">
+                    {progress < 50 ? 'Compressing images...' : 'Optimizing on server...'}
+                  </p>
                 </div>
                 <div className="w-full bg-gray-900 rounded-full h-2 overflow-hidden shadow-inner">
                   <div
